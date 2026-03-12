@@ -11,7 +11,6 @@
 // </copyright>
 // <summary></summary>
 // ***********************************************************************
-using EchoBot.Authentication;
 using EchoBot.Constants;
 using EchoBot.Models;
 using Microsoft.Extensions.Options;
@@ -19,9 +18,11 @@ using Microsoft.Graph;
 using Microsoft.Graph.Communications.Calls;
 using Microsoft.Graph.Communications.Calls.Media;
 using Microsoft.Graph.Communications.Client;
+using Microsoft.Graph.Communications.Client.Authentication;
 using Microsoft.Graph.Communications.Common;
 using Microsoft.Graph.Communications.Common.Telemetry;
 using Microsoft.Graph.Communications.Resources;
+using Microsoft.Identity.Client;
 using Microsoft.Skype.Bots.Media;
 using System.Collections.Concurrent;
 using System.Net;
@@ -113,11 +114,13 @@ namespace EchoBot.Bot
                 _settings.AadAppId,
                 _graphLogger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                _settings.AadAppId,
-                _settings.AadAppSecret,
-                _graphLogger);
+            // Set up authentication using the SDK's built-in DefaultAuthenticationProvider.
+            // This validates both legacy OID tokens and Microsoft Entra tokens,
+            // enabling seamless migration without code changes.
+            var msalApp = ConfidentialClientApplicationBuilder.Create(_settings.AadAppId)
+                .WithClientSecret(_settings.AadAppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
             var mediaPlatformSettings = new MediaPlatformSettings()
             {
@@ -136,7 +139,7 @@ namespace EchoBot.Bot
             var notificationUrl = new Uri($"https://{_settings.ServiceDnsName}:{_settings.BotInstanceExternalPort}/{HttpRouteConstants.CallSignalingRoutePrefix}/{HttpRouteConstants.OnNotificationRequestRoute}");
             _logger.LogInformation($"NotificationUrl: ${notificationUrl}");
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(_settings.AadAppId, tokenProvider);
             builder.SetNotificationUrl(notificationUrl);
             builder.SetMediaPlatformSettings(mediaPlatformSettings);
             builder.SetServiceBaseUrl(new Uri(AppConstants.PlaceCallEndpointUrl));
