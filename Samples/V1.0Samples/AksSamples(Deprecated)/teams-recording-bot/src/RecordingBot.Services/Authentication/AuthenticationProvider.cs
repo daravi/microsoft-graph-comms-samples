@@ -7,7 +7,7 @@
 // Last Modified On : 08-17-2020
 // ***********************************************************************
 // <copyright file="AuthenticationProvider.cs" company="Microsoft">
-//     Copyright ©  2020
+//     Copyright ï¿½  2020
 // </copyright>
 // <summary></summary>
 // ***********************************************************************>
@@ -38,6 +38,7 @@ namespace RecordingBot.Services.Authentication
     /// The authentication provider for this bot instance.
     /// </summary>
     /// <seealso cref="IRequestAuthenticationProvider" />
+    [Obsolete("Use DefaultAuthenticationProvider from the SDK instead. See BotService.cs for the recommended pattern using builder.SetAuthentication(appId, tokenProvider).")]
     public class AuthenticationProvider : ObjectRoot, IRequestAuthenticationProvider
     {
         /// <summary>

@@ -15,12 +15,13 @@ using Microsoft.Graph;
 using Microsoft.Graph.Communications.Calls;
 using Microsoft.Graph.Communications.Calls.Media;
 using Microsoft.Graph.Communications.Client;
+using Microsoft.Graph.Communications.Client.Authentication;
 using Microsoft.Graph.Communications.Common;
 using Microsoft.Graph.Communications.Common.Telemetry;
 using Microsoft.Graph.Communications.Resources;
+using Microsoft.Identity.Client;
 using Microsoft.Skype.Bots.Media;
 using RecordingBot.Model.Models;
-using RecordingBot.Services.Authentication;
 using RecordingBot.Services.Contract;
 using RecordingBot.Services.ServiceSetup;
 using RecordingBot.Services.Util;
@@ -104,13 +105,12 @@ namespace RecordingBot.Services.Bot
                 _settings.AadAppId,
                 _logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                _settings.AadAppId,
-                _settings.AadAppSecret,
-                _logger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(_settings.AadAppId)
+                .WithClientSecret(_settings.AadAppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(_settings.AadAppId, tokenProvider);
             builder.SetNotificationUrl(_settings.CallControlBaseUrl);
             builder.SetMediaPlatformSettings(_settings.MediaPlatformSettings);
             builder.SetServiceBaseUrl(_settings.PlaceCallEndpointUrl);

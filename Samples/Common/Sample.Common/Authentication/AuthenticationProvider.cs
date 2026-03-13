@@ -27,6 +27,7 @@ namespace Sample.Common.Authentication
     /// The authentication provider for this bot instance.
     /// </summary>
     /// <seealso cref="IRequestAuthenticationProvider" />
+    [Obsolete("Use DefaultAuthenticationProvider from the SDK instead. For stateful bots, use builder.SetAuthentication(appId, tokenProvider). Stateless bots may still need this until migrated.")]
     public class AuthenticationProvider : ObjectRoot, IRequestAuthenticationProvider
     {
         /// <summary>

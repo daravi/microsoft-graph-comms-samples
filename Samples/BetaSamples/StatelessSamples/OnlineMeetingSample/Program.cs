@@ -43,9 +43,11 @@ namespace Sample.OnlineMeeting
         {
             var name = typeof(Program).Assembly.GetName().Name;
             var logger = new GraphLogger(name);
+#pragma warning disable CS0618 // Type or member is obsolete
             var onlineMeeting = new AppOnlineMeeting(
                         new AuthenticationProvider(name, appId, appSecret, logger),
                         graphUri);
+#pragma warning restore CS0618
 
             var meetingDetails = await onlineMeeting.GetOnlineMeetingByVtcIdAsync(tenantId, videoTeleconferenceId, default(Guid)).ConfigureAwait(false);
 
@@ -66,9 +68,11 @@ namespace Sample.OnlineMeeting
         {
             var name = typeof(Program).Assembly.GetName().Name;
             var logger = new GraphLogger(name);
+#pragma warning disable CS0618 // Type or member is obsolete
             var onlineMeeting = new AppOnlineMeeting(
                         new AuthenticationProvider(name, appId, appSecret, logger),
                         graphUri);
+#pragma warning restore CS0618
 
             var meetingDetails = await onlineMeeting.CreateOnlineMeetingAsync(tenantId, organizerId, default(Guid)).ConfigureAwait(false);
 

@@ -7,12 +7,13 @@ using Microsoft.Graph;
 using Microsoft.Graph.Communications.Calls;
 using Microsoft.Graph.Communications.Calls.Media;
 using Microsoft.Graph.Communications.Client;
+using Microsoft.Graph.Communications.Client.Authentication;
 using Microsoft.Graph.Communications.Common;
 using Microsoft.Graph.Communications.Common.Telemetry;
 using Microsoft.Graph.Communications.Resources;
+using Microsoft.Identity.Client;
 using Microsoft.Skype.Bots.Media;
 using PsiBot.Model.Models;
-using PsiBot.Services.Authentication;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
@@ -94,13 +95,12 @@ namespace PsiBot.Services.Bot
                 botConfiguration.AadAppId,
                 _logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                botConfiguration.AadAppId,
-                botConfiguration.AadAppSecret,
-                _logger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(botConfiguration.AadAppId)
+                .WithClientSecret(botConfiguration.AadAppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(botConfiguration.AadAppId, tokenProvider);
             builder.SetNotificationUrl(botConfiguration.CallControlBaseUrl);
             builder.SetMediaPlatformSettings(botConfiguration.MediaPlatformSettings);
             builder.SetServiceBaseUrl(botConfiguration.PlaceCallEndpointUrl);

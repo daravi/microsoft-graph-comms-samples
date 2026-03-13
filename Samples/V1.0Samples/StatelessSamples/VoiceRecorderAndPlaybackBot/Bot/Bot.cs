@@ -52,7 +52,9 @@ namespace Sample.VoiceRecorderAndPlaybackBot.Bot
 
             this.GraphLogger = graphLogger;
             var name = this.GetType().Assembly.GetName().Name;
+#pragma warning disable CS0618 // Type or member is obsolete
             this.AuthenticationProvider = new AuthenticationProvider(name, options.AppId, options.AppSecret, graphLogger);
+#pragma warning restore CS0618
             this.Serializer = new CommsSerializer();
 
             var authenticationWrapper = new AuthenticationWrapper(this.AuthenticationProvider);

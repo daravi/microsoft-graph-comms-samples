@@ -13,9 +13,11 @@ namespace Sample.IncidentBot.Bot
     using Microsoft.Graph;
     using Microsoft.Graph.Communications.Calls;
     using Microsoft.Graph.Communications.Client;
+    using Microsoft.Graph.Communications.Client.Authentication;
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
+    using Microsoft.Identity.Client;
     using Sample.Common.Authentication;
     using Sample.Common.Meetings;
     using Sample.Common.OnlineMeetings;
@@ -83,13 +85,12 @@ namespace Sample.IncidentBot.Bot
                 options.AppId,
                 this.graphLogger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                options.AppId,
-                options.AppSecret,
-                this.graphLogger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(options.AppId)
+                .WithClientSecret(options.AppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(options.AppId, tokenProvider);
             builder.SetNotificationUrl(instanceNotificationUri);
             builder.SetServiceBaseUrl(options.PlaceCallEndpointUrl);
 
@@ -137,6 +138,14 @@ namespace Sample.IncidentBot.Bot
                 },
             };
 
+            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
+#pragma warning disable CS0618 // Type or member is obsolete
+            var authProvider = new AuthenticationProvider(
+                name,
+                options.AppId,
+                options.AppSecret,
+                this.graphLogger);
+#pragma warning restore CS0618
             this.OnlineMeetings = new OnlineMeetingHelper(authProvider, options.PlaceCallEndpointUrl);
         }
 

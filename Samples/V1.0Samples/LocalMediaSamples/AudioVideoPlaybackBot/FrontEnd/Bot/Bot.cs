@@ -15,9 +15,11 @@ namespace Sample.AudioVideoPlaybackBot.FrontEnd.Bot
     using Microsoft.Graph.Communications.Calls;
     using Microsoft.Graph.Communications.Calls.Media;
     using Microsoft.Graph.Communications.Client;
+    using Microsoft.Graph.Communications.Client.Authentication;
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
+    using Microsoft.Identity.Client;
     using Microsoft.Skype.Bots.Media;
     using Sample.AudioVideoPlaybackBot.FrontEnd;
     using Sample.AudioVideoPlaybackBot.FrontEnd.Http;
@@ -193,13 +195,12 @@ namespace Sample.AudioVideoPlaybackBot.FrontEnd.Bot
                 service.Configuration.AadAppId,
                 this.Logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                service.Configuration.AadAppId,
-                service.Configuration.AadAppSecret,
-                this.Logger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(service.Configuration.AadAppId)
+                .WithClientSecret(service.Configuration.AadAppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(service.Configuration.AadAppId, tokenProvider);
             builder.SetNotificationUrl(service.Configuration.CallControlBaseUrl);
             builder.SetMediaPlatformSettings(service.Configuration.MediaPlatformSettings);
             builder.SetServiceBaseUrl(service.Configuration.PlaceCallEndpointUrl);
@@ -208,6 +209,14 @@ namespace Sample.AudioVideoPlaybackBot.FrontEnd.Bot
             this.Client.Calls().OnIncoming += this.CallsOnIncoming;
             this.Client.Calls().OnUpdated += this.CallsOnUpdated;
 
+            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
+#pragma warning disable CS0618 // Type or member is obsolete
+            var authProvider = new AuthenticationProvider(
+                name,
+                service.Configuration.AadAppId,
+                service.Configuration.AadAppSecret,
+                this.Logger);
+#pragma warning restore CS0618
             this.OnlineMeetings = new OnlineMeetingHelper(authProvider, service.Configuration.PlaceCallEndpointUrl);
             EventLog.WriteEntry("AudioVideoPlaybackService", "Initialize complete Bot.cs", EventLogEntryType.Warning);
         }

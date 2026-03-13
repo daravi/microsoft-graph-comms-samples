@@ -16,9 +16,11 @@ namespace Sample.HueBot.Bot
     using Microsoft.Graph.Communications.Calls;
     using Microsoft.Graph.Communications.Calls.Media;
     using Microsoft.Graph.Communications.Client;
+    using Microsoft.Graph.Communications.Client.Authentication;
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
+    using Microsoft.Identity.Client;
     using Microsoft.Skype.Bots.Media;
     using Sample.Common;
     using Sample.Common.Authentication;
@@ -54,13 +56,12 @@ namespace Sample.HueBot.Bot
                 options.AppId,
                 this.logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                options.AppId,
-                options.AppSecret,
-                this.logger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(options.AppId)
+                .WithClientSecret(options.AppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(options.AppId, tokenProvider);
             builder.SetNotificationUrl(options.BotBaseUrl.ReplacePort(options.BotBaseUrl.Port + serviceContext.NodeInstance()));
             builder.SetMediaPlatformSettings(this.MediaInit(options, serviceContext));
             builder.SetServiceBaseUrl(options.PlaceCallEndpointUrl);
@@ -70,6 +71,14 @@ namespace Sample.HueBot.Bot
             this.Client.Calls().OnIncoming += this.CallsOnIncoming;
             this.Client.Calls().OnUpdated += this.CallsOnUpdated;
 
+            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
+#pragma warning disable CS0618 // Type or member is obsolete
+            var authProvider = new AuthenticationProvider(
+                name,
+                options.AppId,
+                options.AppSecret,
+                this.logger);
+#pragma warning restore CS0618
             this.OnlineMeetings = new OnlineMeetingHelper(authProvider, options.PlaceCallEndpointUrl);
         }
 

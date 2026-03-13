@@ -13,13 +13,14 @@ namespace Sample.PolicyRecordingBot.FrontEnd.Bot
     using Microsoft.Graph.Communications.Calls;
     using Microsoft.Graph.Communications.Calls.Media;
     using Microsoft.Graph.Communications.Client;
+    using Microsoft.Graph.Communications.Client.Authentication;
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
     using Microsoft.Graph.Models;
+    using Microsoft.Identity.Client;
     using Microsoft.Skype.Bots.Media;
     using Sample.Common;
-    using Sample.Common.Authentication;
     using Sample.Common.Logging;
     using Sample.PolicyRecordingBot.FrontEnd;
 
@@ -81,13 +82,12 @@ namespace Sample.PolicyRecordingBot.FrontEnd.Bot
                 service.Configuration.AadAppId,
                 this.Logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                service.Configuration.AadAppId,
-                service.Configuration.AadAppSecret,
-                this.Logger);
+            var msalApp = ConfidentialClientApplicationBuilder.Create(service.Configuration.AadAppId)
+                .WithClientSecret(service.Configuration.AadAppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
 
-            builder.SetAuthenticationProvider(authProvider);
+            builder.SetAuthentication(service.Configuration.AadAppId, tokenProvider);
             builder.SetNotificationUrl(service.Configuration.CallControlBaseUrl);
             builder.SetMediaPlatformSettings(service.Configuration.MediaPlatformSettings);
             builder.SetServiceBaseUrl(service.Configuration.PlaceCallEndpointUrl);
