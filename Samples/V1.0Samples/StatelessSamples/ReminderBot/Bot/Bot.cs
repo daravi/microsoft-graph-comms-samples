@@ -214,7 +214,7 @@ namespace Sample.ReminderBot.Bot
                 }
                 else
                 {
-                    var httpResponse = httpRequest.CreateResponse(HttpStatusCode.Forbidden);
+                    var httpResponse = httpRequest.CreateResponse(HttpStatusCode.Unauthorized);
                     await httpResponse.CreateHttpResponseAsync(response).ConfigureAwait(false);
                 }
 
