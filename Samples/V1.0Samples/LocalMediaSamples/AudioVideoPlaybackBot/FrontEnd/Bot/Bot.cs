@@ -209,15 +209,9 @@ namespace Sample.AudioVideoPlaybackBot.FrontEnd.Bot
             this.Client.Calls().OnIncoming += this.CallsOnIncoming;
             this.Client.Calls().OnUpdated += this.CallsOnUpdated;
 
-            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
-#pragma warning disable CS0618 // Type or member is obsolete
-            var authProvider = new AuthenticationProvider(
-                name,
-                service.Configuration.AadAppId,
-                service.Configuration.AadAppSecret,
-                this.Logger);
-#pragma warning restore CS0618
-            this.OnlineMeetings = new OnlineMeetingHelper(authProvider, service.Configuration.PlaceCallEndpointUrl);
+            this.OnlineMeetings = new OnlineMeetingHelper(
+                new DefaultAuthenticationProvider(service.Configuration.AadAppId, tokenProvider, this.Logger),
+                service.Configuration.PlaceCallEndpointUrl);
             EventLog.WriteEntry("AudioVideoPlaybackService", "Initialize complete Bot.cs", EventLogEntryType.Warning);
         }
 

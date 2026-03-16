@@ -138,15 +138,9 @@ namespace Sample.IncidentBot.Bot
                 },
             };
 
-            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
-#pragma warning disable CS0618 // Type or member is obsolete
-            var authProvider = new AuthenticationProvider(
-                name,
-                options.AppId,
-                options.AppSecret,
-                this.graphLogger);
-#pragma warning restore CS0618
-            this.OnlineMeetings = new OnlineMeetingHelper(authProvider, options.PlaceCallEndpointUrl);
+            this.OnlineMeetings = new OnlineMeetingHelper(
+                new DefaultAuthenticationProvider(options.AppId, tokenProvider, this.graphLogger),
+                options.PlaceCallEndpointUrl);
         }
 
         /// <summary>

@@ -71,15 +71,9 @@ namespace Sample.HueBot.Bot
             this.Client.Calls().OnIncoming += this.CallsOnIncoming;
             this.Client.Calls().OnUpdated += this.CallsOnUpdated;
 
-            // OnlineMeetingHelper still requires IRequestAuthenticationProvider for token acquisition.
-#pragma warning disable CS0618 // Type or member is obsolete
-            var authProvider = new AuthenticationProvider(
-                name,
-                options.AppId,
-                options.AppSecret,
-                this.logger);
-#pragma warning restore CS0618
-            this.OnlineMeetings = new OnlineMeetingHelper(authProvider, options.PlaceCallEndpointUrl);
+            this.OnlineMeetings = new OnlineMeetingHelper(
+                new DefaultAuthenticationProvider(options.AppId, tokenProvider, this.logger),
+                options.PlaceCallEndpointUrl);
         }
 
         /// <summary>
