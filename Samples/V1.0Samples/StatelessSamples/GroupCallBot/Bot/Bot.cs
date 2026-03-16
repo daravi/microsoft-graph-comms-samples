@@ -19,6 +19,7 @@ namespace Sample.GroupCallBot.Bot
     using Microsoft.Graph;
     using Microsoft.Graph.Communications.Client.Authentication;
     using Microsoft.Graph.Communications.Client.Transport;
+    using Microsoft.Identity.Client;
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Common.Transport;
@@ -52,10 +53,11 @@ namespace Sample.GroupCallBot.Bot
             this.appId = options.AppId;
 
             this.GraphLogger = graphLogger;
-            var name = this.GetType().Assembly.GetName().Name;
-#pragma warning disable CS0618 // Type or member is obsolete
-            this.AuthenticationProvider = new AuthenticationProvider(name, options.AppId, options.AppSecret, graphLogger);
-#pragma warning restore CS0618
+            var msalApp = ConfidentialClientApplicationBuilder.Create(options.AppId)
+                .WithClientSecret(options.AppSecret)
+                .Build();
+            var tokenProvider = new MsalTokenProvider(msalApp);
+            this.AuthenticationProvider = new DefaultAuthenticationProvider(options.AppId, tokenProvider, graphLogger);
             this.Serializer = new CommsSerializer();
 
             var authenticationWrapper = new AuthenticationWrapper(this.AuthenticationProvider);
