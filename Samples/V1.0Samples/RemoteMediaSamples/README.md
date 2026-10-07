@@ -95,7 +95,7 @@ Once your App Service is published and running, you will need to send a POST req
     "name": "<name-of-incident>", --> can be any string value
     "time": "<start-time-of-the-incident>", --> must be valid C# DateTime string
   
-    "tenantId": "{TenantId}", --> Tenant ID for the meeting; required for short meeting URLs
+    "tenantId": "{TenantId}", --> TenantID of the users your bot will be calling; also used as the meeting's tenant for short meeting URLs
     "objectIds": [
         "{UserObjectId-1}",
         "{UserObjectId-2}"

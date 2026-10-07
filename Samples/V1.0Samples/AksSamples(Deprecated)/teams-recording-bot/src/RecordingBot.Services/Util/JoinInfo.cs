@@ -1,4 +1,4 @@
-// ***********************************************************************
+﻿// ***********************************************************************
 // Assembly         : RecordingBot.Services
 // Author           : JasonTheDeveloper
 // Created          : 09-07-2020
@@ -114,19 +114,26 @@ namespace RecordingBot.Services.Util
                 return false;
             }
 
-            //// The path must be exactly "/meet/<digits>", so a malformed id falls through to the
-            //// long-URL parser rather than being truncated into a plausible-looking meeting id.
-            var segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length != 2 ||
-                !string.Equals(segments[0], "meet", StringComparison.OrdinalIgnoreCase) ||
-                !IsAllDigits(segments[1]))
+            //// The path must be exactly "/meet/<digits>". Extra or empty path segments (including a
+            //// trailing slash or doubled separators) and trailing characters after the digits are
+            //// not a short join URL, so they fall through to the long-URL parser and are rejected
+            //// instead of being normalized into a plausible-looking meeting id.
+            const string ShortJoinPathPrefix = "/meet/";
+            var path = uri.AbsolutePath;
+            if (!path.StartsWith(ShortJoinPathPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var joinMeetingId = path.Substring(ShortJoinPathPrefix.Length);
+            if (!IsAllDigits(joinMeetingId))
             {
                 return false;
             }
 
             meetingInfo = new JoinMeetingIdMeetingInfo
             {
-                JoinMeetingId = segments[1],
+                JoinMeetingId = joinMeetingId,
 
                 //// Uri.Query excludes any fragment, so "?p=abc#frag" correctly yields "abc".
                 Passcode = GetQueryParameter(uri.Query, "p"),

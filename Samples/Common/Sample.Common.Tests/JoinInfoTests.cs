@@ -159,7 +159,8 @@ namespace Sample.Common.Tests
 
         /// <summary>
         /// A malformed meeting id must be rejected rather than silently truncated to the leading
-        /// digits, which would otherwise produce a plausible but wrong meeting id.
+        /// digits, which would otherwise produce a plausible but wrong meeting id. Extra or empty
+        /// path segments must likewise be rejected rather than collapsed into "/meet/{id}".
         /// </summary>
         /// <param name="joinUrl">The malformed short join URL under test.</param>
         [DataTestMethod]
@@ -167,6 +168,9 @@ namespace Sample.Common.Tests
         [DataRow("https://teams.microsoft.com/meet/abc123456789012")]
         [DataRow("https://teams.microsoft.com/meet/")]
         [DataRow("https://teams.microsoft.com/meet/123456789012/456?p=abc")]
+        [DataRow("https://teams.microsoft.com/meet/123456789012/?p=abc")]
+        [DataRow("https://teams.microsoft.com/meet//123456789012?p=abc")]
+        [DataRow("https://teams.microsoft.com//meet/123456789012?p=abc")]
         public void ParseJoinURL_MalformedShortUrl_Throws(string joinUrl)
         {
             Assert.ThrowsException<ArgumentException>(() => JoinInfo.ParseJoinURL(joinUrl));

@@ -93,8 +93,10 @@ namespace PsiBot.Services.Controllers
                       </head>
                       <body onload='updateCalls()'>
                           <h1>Teams Bot</h1>
-                          <input name='JoinURL' type='text' id='joinUrl' placeholder='Meeting URL' />
-                          <input name='TenantId' type='text' id='tenantId' placeholder='Tenant ID (required for short links)' />
+                          <label for='joinUrl'>Meeting URL</label>
+                          <input name='JoinURL' type='text' id='joinUrl' />
+                          <label for='tenantId'>Tenant ID (required for short meeting links)</label>
+                          <input name='TenantId' type='text' id='tenantId' />
                           <button onclick='join(document.getElementById(""joinUrl"").value, document.getElementById(""tenantId"").value)'>Join Meeting</button>
                           <hr />
                           <h1>List Calls</h1>

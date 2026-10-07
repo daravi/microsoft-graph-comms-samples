@@ -61,10 +61,23 @@ namespace EchoBot.Bot
         private readonly IBotMediaLogger _mediaPlatformLogger;
 
         /// <summary>
-        /// Gets the collection of call handlers.
+        /// Gets the collection of call handlers, keyed by call id. The call id always exists,
+        /// unlike the chat thread id, which a call joined from a short meeting URL may not have yet.
         /// </summary>
         /// <value>The call handlers.</value>
         public ConcurrentDictionary<string, CallHandler> CallHandlers { get; } = new ConcurrentDictionary<string, CallHandler>();
+
+        /// <summary>
+        /// Placeholder call id for a meeting whose join request is still in flight.
+        /// </summary>
+        private const string PendingCallId = "";
+
+        /// <summary>
+        /// Maps each joined meeting to the id of its call, so the same meeting is not joined twice.
+        /// A long join URL is keyed by its chat thread; a short join URL, which carries no thread,
+        /// is keyed by tenant and join meeting id.
+        /// </summary>
+        private readonly ConcurrentDictionary<string, string> _meetingCallIds = new ConcurrentDictionary<string, string>();
 
         /// <summary>
         /// Gets the entry point for stateful bot.
@@ -160,7 +173,7 @@ namespace EchoBot.Bot
         /// <summary>
         /// End a particular call.
         /// </summary>
-        /// <param name="threadId">The call thread id.</param>
+        /// <param name="threadId">The call thread id, or the call id returned when the call was joined.</param>
         /// <returns>The <see cref="Task" />.</returns>
         public async Task EndCallByThreadIdAsync(string threadId)
         {
@@ -206,40 +219,103 @@ namespace EchoBot.Bot
                     nameof(joinCallBody));
             }
 
-            var mediaSession = this.CreateLocalMediaSession();
+            var meetingKey = GetMeetingKey(chatInfo, meetingInfo, tenantId);
 
-            var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, mediaSession)
+            // Reserve the meeting before creating the call, so a repeated or concurrent request for
+            // the same meeting cannot create a second call.
+            if (!this.TryReserveMeeting(meetingKey, chatInfo?.ThreadId))
             {
-                TenantId = tenantId,
-            };
-
-            if (!string.IsNullOrWhiteSpace(joinCallBody.DisplayName))
-            {
-                // Teams client does not allow changing of ones own display name.
-                // If display name is specified, we join as anonymous (guest) user
-                // with the specified display name.  This will put bot into lobby
-                // unless lobby bypass is disabled.
-                joinParams.GuestIdentity = new Identity
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    DisplayName = joinCallBody.DisplayName,
-                };
+                throw new Exception("Call has already been added");
             }
 
-            // CallHandlers is keyed by the meeting's chat thread. A short join URL carries no thread,
-            // so this pre-join duplicate check simply cannot apply to that path; the handler is still
-            // registered under the real thread id once the call is established.
-            var existingCallThreadId = joinParams.ChatInfo?.ThreadId;
-
-            if (existingCallThreadId == null || !this.CallHandlers.TryGetValue(existingCallThreadId, out CallHandler? call))
+            try
             {
+                var mediaSession = this.CreateLocalMediaSession();
+
+                var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, mediaSession)
+                {
+                    TenantId = tenantId,
+                };
+
+                if (!string.IsNullOrWhiteSpace(joinCallBody.DisplayName))
+                {
+                    // Teams client does not allow changing of ones own display name.
+                    // If display name is specified, we join as anonymous (guest) user
+                    // with the specified display name.  This will put bot into lobby
+                    // unless lobby bypass is disabled.
+                    joinParams.GuestIdentity = new Identity
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        DisplayName = joinCallBody.DisplayName,
+                    };
+                }
+
                 var statefulCall = await this.Client.Calls().AddAsync(joinParams, scenarioId).ConfigureAwait(false);
+                _meetingCallIds[meetingKey] = statefulCall.Id;
                 statefulCall.GraphLogger.Info($"Call creation complete: {statefulCall.Id}");
                 _logger.LogInformation($"Call creation complete: {statefulCall.Id}");
                 return statefulCall;
             }
+            catch
+            {
+                _meetingCallIds.TryRemove(new KeyValuePair<string, string>(meetingKey, PendingCallId));
+                throw;
+            }
+        }
 
-            throw new Exception("Call has already been added");
+        /// <summary>
+        /// Gets the key identifying the meeting being joined.
+        /// </summary>
+        /// <param name="chatInfo">The chat info, which is null for a short join URL.</param>
+        /// <param name="meetingInfo">The meeting info.</param>
+        /// <param name="tenantId">The tenant id of the meeting.</param>
+        /// <returns>The meeting key.</returns>
+        private static string GetMeetingKey(ChatInfo? chatInfo, MeetingInfo meetingInfo, string tenantId)
+        {
+            if (meetingInfo is JoinMeetingIdMeetingInfo joinMeetingIdMeetingInfo)
+            {
+                return $"joinMeetingId:{tenantId.ToLowerInvariant()}:{joinMeetingIdMeetingInfo.JoinMeetingId}";
+            }
+
+            return $"thread:{chatInfo?.ThreadId}";
+        }
+
+        /// <summary>
+        /// Reserves a meeting for a new call, unless a call to it already exists or is being created.
+        /// </summary>
+        /// <param name="meetingKey">The meeting key.</param>
+        /// <param name="threadId">The meeting's chat thread id, when known.</param>
+        /// <returns>True when the meeting was reserved.</returns>
+        private bool TryReserveMeeting(string meetingKey, string? threadId)
+        {
+            // A meeting first joined from its short URL is keyed by join meeting id, but its call
+            // learns the real thread once established, so also match live calls by thread.
+            if (threadId != null &&
+                this.CallHandlers.Values.Any(handler => handler.Call.Resource.ChatInfo?.ThreadId == threadId))
+            {
+                return false;
+            }
+
+            while (!_meetingCallIds.TryAdd(meetingKey, PendingCallId))
+            {
+                if (!_meetingCallIds.TryGetValue(meetingKey, out var existingCallId))
+                {
+                    continue;
+                }
+
+                if (existingCallId == PendingCallId || this.Client.Calls()[existingCallId] != null)
+                {
+                    return false;
+                }
+
+                // The recorded call no longer exists, so the reservation is stale and can be replaced.
+                if (_meetingCallIds.TryUpdate(meetingKey, PendingCallId, existingCallId))
+                {
+                    return true;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -335,14 +411,17 @@ namespace EchoBot.Bot
             foreach (var call in args.AddedResources)
             {
                 var callHandler = new CallHandler(call, _settings, _logger);
-                var threadId = call.Resource.ChatInfo.ThreadId;
-                this.CallHandlers[threadId] = callHandler;
+                this.CallHandlers[call.Id] = callHandler;
             }
 
             foreach (var call in args.RemovedResources)
             {
-                var threadId = call.Resource.ChatInfo.ThreadId;
-                if (this.CallHandlers.TryRemove(threadId, out CallHandler? handler))
+                foreach (var meetingCall in _meetingCallIds.Where(entry => entry.Value == call.Id).ToList())
+                {
+                    _meetingCallIds.TryRemove(meetingCall);
+                }
+
+                if (this.CallHandlers.TryRemove(call.Id, out CallHandler? handler))
                 {
                     Task.Run(async () => {
                         await handler.BotMediaStream.ShutdownAsync();
@@ -355,17 +434,18 @@ namespace EchoBot.Bot
         /// <summary>
         /// The get handler or throw.
         /// </summary>
-        /// <param name="threadId">The call thread id.</param>
+        /// <param name="threadId">The call thread id, or the call id.</param>
         /// <returns>The <see cref="CallHandler" />.</returns>
-        /// <exception cref="ArgumentException">call ({callLegId}) not found</exception>
+        /// <exception cref="ArgumentException">call ({threadId}) not found</exception>
         private CallHandler GetHandlerOrThrow(string threadId)
         {
-            if (!this.CallHandlers.TryGetValue(threadId, out CallHandler? handler))
+            if (this.CallHandlers.TryGetValue(threadId, out CallHandler? handler))
             {
-                throw new ArgumentException($"call ({threadId}) not found");
+                return handler;
             }
 
-            return handler;
+            return this.CallHandlers.Values.FirstOrDefault(callHandler => callHandler.Call.Resource.ChatInfo?.ThreadId == threadId)
+                ?? throw new ArgumentException($"call ({threadId}) not found");
         }
     }
 }
