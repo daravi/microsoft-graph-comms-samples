@@ -194,7 +194,18 @@ namespace EchoBot.Bot
 
             var (chatInfo, meetingInfo) = JoinInfo.ParseJoinURL(joinCallBody.JoinUrl);
 
-            var tenantId = (meetingInfo as OrganizerMeetingInfo).Organizer.GetPrimaryIdentity().GetTenantId();
+            // A short join URL resolves to JoinMeetingIdMeetingInfo, which carries no organizer, so
+            // the tenant cannot be derived from the URL. Fall back to the tenant on the request body.
+            var tenantId = (meetingInfo as OrganizerMeetingInfo)?.Organizer?.GetPrimaryIdentity()?.GetTenantId()
+                ?? joinCallBody.TenantId;
+
+            if (string.IsNullOrWhiteSpace(tenantId))
+            {
+                throw new ArgumentException(
+                    "TenantId is required when joining with a short meeting URL, because the URL does not carry the organizer.",
+                    nameof(joinCallBody));
+            }
+
             var mediaSession = this.CreateLocalMediaSession();
 
             var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, mediaSession)
@@ -215,7 +226,12 @@ namespace EchoBot.Bot
                 };
             }
 
-            if (!this.CallHandlers.TryGetValue(joinParams.ChatInfo.ThreadId, out CallHandler? call))
+            // CallHandlers is keyed by the meeting's chat thread. A short join URL carries no thread,
+            // so this pre-join duplicate check simply cannot apply to that path; the handler is still
+            // registered under the real thread id once the call is established.
+            var existingCallThreadId = joinParams.ChatInfo?.ThreadId;
+
+            if (existingCallThreadId == null || !this.CallHandlers.TryGetValue(existingCallThreadId, out CallHandler? call))
             {
                 var statefulCall = await this.Client.Calls().AddAsync(joinParams, scenarioId).ConfigureAwait(false);
                 statefulCall.GraphLogger.Info($"Call creation complete: {statefulCall.Id}");
